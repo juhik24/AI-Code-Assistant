@@ -36,7 +36,7 @@ Question:
 """
 
 
-def ask(question, session_id):
+def ask(session_id, question):
     # Save user question
     append_message(
         session_id=session_id,
