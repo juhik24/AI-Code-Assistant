@@ -4,6 +4,8 @@ import zipfile
 from pathlib import Path
 import os
 import shutil
+import traceback
+from fastapi.responses import PlainTextResponse
 from fastapi import BackgroundTasks
 
 from fastapi import FastAPI, UploadFile, File
@@ -56,12 +58,23 @@ def index():
     result = index_repository()
     return result
 
+# @app.post("/chat")
+# def chat(request: ChatRequest):
+#     return ask(
+#         request.question,
+#         request.session_id
+#     )
+
+
 @app.post("/chat")
-def chat(request: ChatRequest):
-    return ask(
-        request.question,
-        request.session_id
-    )
+async def chat(req: ChatRequest):
+    try:
+        return ask(req.session_id, req.question)
+    except Exception:
+        return PlainTextResponse(
+            traceback.format_exc(),
+            status_code=500,
+        )
 
 @app.get("/history/{session_id}")
 def history(session_id: str):
@@ -157,3 +170,15 @@ async def get_progress(session_id: str):
         }
 
     return progress[session_id]
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+@app.get("/db-health")
+def db_health():
+    from app.database.mongo import chat_history
+    return {
+        "count": chat_history.count_documents({})
+    }
