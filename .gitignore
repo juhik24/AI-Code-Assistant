@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+
+# ChromaDB
+chroma_db/
+
+# Uploads
+uploads/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Build files
+frontend/dist/
+
+# macOS
+.DS_Store
+
+sample_project/
+sample_project.zip
