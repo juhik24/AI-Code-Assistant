@@ -14,6 +14,7 @@ function App() {
 
   const [status, setStatus] = useState("");
   const [repoIndexed, setRepoIndexed] = useState(false);
+  const [progress, setProgress] = useState(null);
 
   const [sessionId, setSessionId] = useState(
     localStorage.getItem("session_id") || ""
@@ -21,12 +22,14 @@ function App() {
 
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setMessages([]);
+      return;
+    }
 
     const loadHistory = async () => {
       try {
         const res = await api.get(`/history/${sessionId}`);
-
         setMessages(res.data.messages);
       } catch (err) {
         console.error("Failed to load chat history:", err);
@@ -36,9 +39,44 @@ function App() {
     loadHistory();
   }, [sessionId]);
 
+  useEffect(() => {
+  if (!loadingRepo || !sessionId) return;
+
+  const interval = setInterval(async () => {
+    try {
+      const res = await api.get(`/progress/${sessionId}`);
+
+      setProgress(res.data);
+
+      if (res.data.status === "completed") {
+        clearInterval(interval);
+
+        setLoadingRepo(false);
+        setRepoIndexed(true);
+
+        setStatus(
+          `✅ Repository indexed successfully (${res.data.total} chunks)`
+        );
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [loadingRepo, sessionId]);
 
   const clearChat = () => {
     setMessages([]);
+  };
+
+  const newChat = () => {
+    setMessages([]);
+    setSessionId("");
+    setRepoIndexed(false);
+    setStatus("");
+
+    localStorage.removeItem("session_id");
   };
 
   const uploadZip = async (file) => {
@@ -46,11 +84,11 @@ function App() {
   formData.append("file", file);
 
   try {
+    clearChat();
+
     setLoadingRepo(true);
     setRepoIndexed(false);
-    setStatus("Uploading and indexing repository...");
-
-    clearChat();
+    setProgress(null);
 
     const res = await api.post("/upload", formData, {
       headers: {
@@ -61,27 +99,24 @@ function App() {
     setSessionId(res.data.session_id);
     localStorage.setItem("session_id", res.data.session_id);
 
-    setRepoIndexed(true);
-
-    setStatus(
-      `✅ Repository indexed successfully (${res.data.documents} documents, ${res.data.chunks} chunks)`
-    );
+    setStatus("Repository uploaded. Indexing started...");
   } catch (err) {
     console.error(err);
-    setRepoIndexed(false);
-    setStatus("❌ Failed to upload repository.");
-  } finally {
+
     setLoadingRepo(false);
+    setRepoIndexed(false);
+
+    setStatus("❌ Failed to upload repository.");
   }
 };
 
   const uploadGithub = async (repoUrl) => {
   try {
+    clearChat();
+
     setLoadingRepo(true);
     setRepoIndexed(false);
-    setStatus("Cloning and indexing repository...");
-
-    clearChat();
+    setProgress(null);
 
     const res = await api.post("/github", {
       repo_url: repoUrl,
@@ -89,18 +124,16 @@ function App() {
 
     setSessionId(res.data.session_id);
     localStorage.setItem("session_id", res.data.session_id);
+    console.log("Session ID:", res.data.session_id);
 
-    setRepoIndexed(true);
-
-    setStatus(
-      `✅ Repository indexed successfully (${res.data.documents} documents, ${res.data.chunks} chunks)`
-    );
+    setStatus("Repository uploaded. Indexing started...");
   } catch (err) {
     console.error(err);
-    setRepoIndexed(false);
-    setStatus("❌ Failed to index GitHub repository.");
-  } finally {
+
     setLoadingRepo(false);
+    setRepoIndexed(false);
+
+    setStatus("❌ Failed to index GitHub repository.");
   }
 };
 
@@ -165,12 +198,25 @@ function App() {
           </p>
         </div>
 
+        <div className="flex items-center gap-4">
+
         {repoIndexed && (
-  <span className="flex items-center gap-2 text-green-400 text-sm font-medium">
-    <span className="w-2 h-2 rounded-full bg-green-400"></span>
-    Repository Indexed
-  </span>
-)}
+          <span className="flex items-center gap-2 text-green-400 text-sm font-medium">
+            <span className="w-2 h-2 rounded-full bg-green-400"></span>
+            Repository Indexed
+          </span>
+        )}
+
+        {sessionId && (
+          <button
+            onClick={newChat}
+            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition"
+          >
+            + New Chat
+          </button>
+        )}
+
+      </div>
 
       </div>
     </header>
@@ -204,17 +250,47 @@ function App() {
             indexed={repoIndexed}
           />
 
-          {status && (
-          <div
-            className={`mt-6 rounded-xl px-4 py-3 text-sm ${
-              repoIndexed
-                ? "bg-green-500/10 border border-green-500/30 text-green-300"
-                : "bg-slate-800 border border-slate-700 text-slate-300"
-            }`}
-          >
-            {status}
-          </div>
-        )}
+          {loadingRepo && progress ? (
+            <div className="mt-6 rounded-xl bg-slate-800 border border-slate-700 p-5">
+
+              <p className="font-semibold text-lg">
+                {progress.stage}
+              </p>
+
+              <div className="w-full bg-slate-700 rounded-full h-3 mt-4 overflow-hidden">
+                <div
+                  className="bg-blue-500 h-3 transition-all duration-300"
+                  style={{ width: `${progress.percentage}%` }}
+                />
+              </div>
+
+              <p className="mt-3 text-sm text-slate-300">
+                {progress.completed} / {progress.total} chunks
+              </p>
+
+              <p className="text-sm text-slate-400 mt-1">
+                {progress.percentage}% complete
+              </p>
+
+              {progress.status === "waiting" && (
+                <p className="text-yellow-400 mt-2">
+                  Processing is taking a little longer than usual...
+                </p>
+              )}
+            </div>
+          ) : (
+            status && (
+              <div
+                className={`mt-6 rounded-xl px-4 py-3 text-sm ${
+                  repoIndexed
+                    ? "bg-green-500/10 border border-green-500/30 text-green-300"
+                    : "bg-slate-800 border border-slate-700 text-slate-300"
+                }`}
+              >
+                {status}
+              </div>
+            )
+          )}
 
         </div>
 

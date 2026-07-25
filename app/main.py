@@ -4,6 +4,7 @@ import zipfile
 from pathlib import Path
 import os
 import shutil
+from fastapi import BackgroundTasks
 
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 
 from app.backend.chat import ask
 from app.backend.indexer import index_repository
+from app.backend.progress import progress
 from app.backend.github import clone_repository
 from app.services.chat_history_service import (
     create_session,
@@ -26,7 +28,10 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://your-app.vercel.app",
+    ]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,6 +43,12 @@ class GitHubRequest(BaseModel):
 class ChatRequest(BaseModel):
     session_id: str
     question: str
+
+def background_index(project_path, session_id):
+    try:
+        index_repository(project_path, session_id)
+    finally:
+        shutil.rmtree(project_path.parent, ignore_errors=True)
 
 
 @app.post("/index")
@@ -59,7 +70,7 @@ def history(session_id: str):
     }
 
 @app.post("/upload")
-async def upload(file: UploadFile = File(...)):
+async def upload(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     session_id = str(uuid.uuid4())
 
     session_dir = UPLOAD_DIR / session_id
@@ -88,22 +99,24 @@ async def upload(file: UploadFile = File(...)):
     project_path = folders[0]
     print(f"Project path: {project_path}")
 
-    try:
-        result = index_repository(project_path, session_id)
-        create_session(
-            session_id=session_id,
-            repository_name=file.filename
-        )
-    finally:
-        shutil.rmtree(session_dir, ignore_errors=True)
+    create_session(
+        session_id=session_id,
+        repository_name=file.filename
+    )
+
+    background_tasks.add_task(
+        background_index,
+        project_path,
+        session_id
+    )
 
     return {
         "session_id": session_id,
-        **result
+        "message": "Indexing started"
     }
 
 @app.post("/github")
-async def index_github(request: GitHubRequest):
+async def index_github(request: GitHubRequest, background_tasks: BackgroundTasks,):
     session_id = str(uuid.uuid4())
 
     session_dir = UPLOAD_DIR / session_id
@@ -111,19 +124,36 @@ async def index_github(request: GitHubRequest):
 
     project_path = session_dir / "repo"
 
-    try:
-        clone_repository(request.repo_url, project_path)
+    clone_repository(request.repo_url, project_path)
 
-        result = index_repository(project_path, session_id)
-        create_session(
-            session_id=session_id,
-            repository_name=request.repo_url
-        )
+    create_session(
+        session_id=session_id,
+        repository_name=request.repo_url
+    )
 
-    finally:
-        shutil.rmtree(session_dir, ignore_errors=True)
+    background_tasks.add_task(
+        background_index,
+        project_path,
+        session_id
+    )
 
     return {
         "session_id": session_id,
-        **result,
+        "message": "Indexing started"
     }
+
+@app.get("/progress/{session_id}")
+async def get_progress(session_id: str):
+    print("Requested:", session_id)
+    print("Available:", list(progress.keys()))
+
+    if session_id not in progress:
+        return {
+            "status": "starting",
+            "stage": "Initializing",
+            "completed": 0,
+            "total": 0,
+            "percentage": 0,
+        }
+
+    return progress[session_id]
