@@ -25,6 +25,13 @@ IGNORE_DIRS = {
     "__MACOSX",   # Added
 }
 
+IGNORE_FILES = {
+    "package-lock.json",
+    "package.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+}
+
 
 def load_files(project_path: Path):
     documents = []
@@ -43,6 +50,9 @@ def load_files(project_path: Path):
             continue
 
         if file.suffix not in SUPPORTED_EXTENSIONS:
+            continue
+
+        if file.name in IGNORE_FILES:
             continue
 
         try:
