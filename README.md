@@ -19,9 +19,9 @@ An AI-powered code assistant that allows developers to upload or import a GitHub
 - Built with React, FastAPI, MongoDB Atlas, and ChromaDB
 - Fully deployed on Vercel and Render
 
-## Demo
+## Live Demo
 
-Frontend: https://ai-code-assistant-sage.vercel.app
+**Try it here:** https://ai-code-assistant-sage.vercel.app
 
 # **📸 Screenshots**
 ## Home Page
