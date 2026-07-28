@@ -190,7 +190,7 @@ function App() {
 
         <div>
           <h1 className="text-2xl font-bold">
-            Code Assistant
+            CodeAtlas
           </h1>
 
           <p className="text-sm text-slate-400">
