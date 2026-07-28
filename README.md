@@ -21,7 +21,7 @@ An AI-powered code assistant that allows developers to upload or import a GitHub
 
 ## Live Demo
 
-**Try it here:** https://ai-code-assistant-sage.vercel.app
+**Try it here:** https://codeatlas-sage.vercel.app/
 
 # **📸 Screenshots**
 ## Home Page
