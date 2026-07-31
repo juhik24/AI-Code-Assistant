@@ -32,7 +32,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "https://ai-code-assistant-sage.vercel.app",
+        "https://codeatlas-sage.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
